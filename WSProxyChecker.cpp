@@ -17,7 +17,7 @@ std::vector<std::string> split(const std::string& str, const std::string& token)
 }
 
 ULONG ResolveDomainToIP(const std::string& domain) {
-    addrinfo hints = {}, *res = nullptr;
+    addrinfo hints = {}, * res = nullptr;
 
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -83,7 +83,7 @@ void ConnectProxies(const std::vector<std::string>& data)
 
             proxyConnections.push_back(std::async(std::launch::async, [proxy = proxy.back()] {
                 proxy->Connect();
-            }));
+                }));
         }
         catch (...)
         {
@@ -101,12 +101,14 @@ bool PrepareProxies(const std::string& fileName)
 {
     if (!std::filesystem::exists(fileName))
     {
+        std::cout << "File not found: " << fileName << "\n";
         return false;
     }
 
     std::ifstream m_read(fileName);
     if (!m_read.is_open())
     {
+        std::cout << "Unable to open file: " << fileName << "\n";
         return false;
     }
 
@@ -121,9 +123,11 @@ bool PrepareProxies(const std::string& fileName)
 
     if (myLines.empty())
     {
+        std::cout << "File is empty: " << fileName << "\n";
         return false;
     }
 
+    std::cout << "Loaded " << myLines.size() << " proxies from " << fileName << "\n";
     std::cout << "Connecting proxies...\n";
     ConnectProxies(myLines);
 
@@ -141,9 +145,9 @@ std::vector<std::shared_ptr<CBotProxy>> GetProxies()
 {
     std::vector<std::shared_ptr<CBotProxy>> out_value;
     std::for_each(proxy.begin(), proxy.end(), [&out_value](const std::shared_ptr<CBotProxy>& p)
-    {
-        if (p->GetStatus() == PROXY_CONNECTED) { out_value.push_back(p); }
-    });
+        {
+            if (p->GetStatus() == PROXY_CONNECTED) { out_value.push_back(p); }
+        });
     return out_value;
 }
 
@@ -157,17 +161,51 @@ void Export()
     output_file.close();
 }
 
-int main()
+bool IsValidTextFile(const std::string& fileName)
 {
-	WSADATA wsaData;
-	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-	{
-		return 1;
-	}
+    if (fileName.length() < 4) return false;
+
+    std::string extension = fileName.substr(fileName.length() - 4);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+    return extension == ".txt";
+}
+
+int main(int argc, char* argv[])
+{
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        return 1;
+    }
+
+    std::string proxyFileName = "proxies.txt"; // default file
+
+    // Check if file was dragged onto executable
+    if (argc > 1)
+    {
+        std::string droppedFile = argv[1];
+
+        if (IsValidTextFile(droppedFile))
+        {
+            proxyFileName = droppedFile;
+            std::cout << "Using dropped file: " << proxyFileName << "\n";
+        }
+        else
+        {
+            std::cout << "Invalid file type. Only .txt files are supported.\n";
+            std::cout << "Using default file: " << proxyFileName << "\n";
+        }
+    }
+    else
+    {
+        std::cout << "No file dropped. Using default file: " << proxyFileName << "\n";
+        std::cout << "Tip: You can drag & drop a .txt file onto this executable\n";
+    }
 
     std::cout << "Preparing proxies...\n";
 
-    std::thread t1(PrepareProxies, "proxies.txt");
+    std::thread t1(PrepareProxies, proxyFileName);
     t1.detach();
 
     while (true)
@@ -185,6 +223,6 @@ int main()
 
     system("pause");
 
-	WSACleanup();
+    WSACleanup();
     return 0;
 }
